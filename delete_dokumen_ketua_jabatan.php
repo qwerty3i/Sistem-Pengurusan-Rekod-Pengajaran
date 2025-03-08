@@ -1,0 +1,99 @@
+<?php
+// delete_dokumen.php
+
+include('database.php');
+session_start();
+
+// Verify ketua bahagian role
+if (!isset($_SESSION['id']) || $_SESSION['role'] !== 'ketua bahagian') {
+    header("Location: login.php");
+    exit();
+}
+
+if (isset($_GET['id'])) {
+    $dokumen_id = intval($_GET['id']);
+
+    // Verify the document belongs to the ketua jabatan
+    $verify_query = "SELECT d.*, k.sesi, k.id as kursus_id
+                    FROM dokumen d 
+                    JOIN kursus k ON d.kursus_id = k.id
+                    WHERE d.dokumen_id = ? 
+                    AND k.pensyarah_id = (SELECT id FROM pensyarah WHERE id_users = ?)";
+    
+    $stmt = $conn->prepare($verify_query);
+    $stmt->bind_param("ii", $dokumen_id, $_SESSION['id']);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $serahan_no = $row['serahan_no'];
+        $file_path = $row['path_dokumen'];
+        $sesi = $row['sesi'];
+        $kursus_id = $row['kursus_id'];
+
+        // Begin transaction
+        $conn->begin_transaction();
+
+        try {
+            // Update document record instead of deleting
+            $update_sql = "UPDATE dokumen 
+                          SET path_dokumen = NULL, 
+                              status = 'Not Checked',
+                              uploaded_at = NULL,
+                              comment = NULL 
+                          WHERE dokumen_id = ?";
+                          
+            $update_stmt = $conn->prepare($update_sql);
+            if (!$update_stmt) {
+                throw new Exception("Prepare failed: (" . $conn->errno . ") " . $conn->error);
+            }
+            
+            $update_stmt->bind_param("i", $dokumen_id);
+            if (!$update_stmt->execute()) {
+                throw new Exception("Execute failed: (" . $update_stmt->errno . ") " . $update_stmt->error);
+            }
+
+            // Commit the transaction
+            $conn->commit();
+
+            // Delete the physical file if it exists
+            if (!empty($file_path) && file_exists($file_path)) {
+                if (!unlink($file_path)) {
+                    error_log("Failed to delete file: " . $file_path);
+                    $_SESSION['file_deletion_error'] = "Document updated in database, but failed to delete the file from the server.";
+                }
+            }
+
+            $_SESSION['delete_success'] = "Document deleted successfully.";
+
+            // Redirect back to ketua jabatan page
+            $redirect_url = ($serahan_no == 1) ? "serahan_pertama_ketua_jabatan.php" : "serahan_kedua_ketua_jabatan.php";
+            $redirect_url .= "?sesi=" . urlencode($sesi) . "&kursus=" . urlencode($kursus_id);
+            header("Location: " . $redirect_url);
+            exit();
+
+        } catch (Exception $e) {
+            $conn->rollback();
+            $_SESSION['delete_error'] = "Error updating document: " . $e->getMessage();
+            header("Location: serahan_pertama.php?sesi=" . urlencode($sesi) . "&kursus=" . urlencode($kursus_id));
+            exit();
+        } finally {
+            if (isset($update_stmt)) {
+                $update_stmt->close();
+            }
+            $stmt->close();
+        }
+    } else {
+        $_SESSION['delete_error'] = "Document not found!";
+        header("Location: serahan_pertama.php");
+        exit();
+    }
+} else {
+    $_SESSION['delete_error'] = "Invalid request!";
+    header("Location: serahan_pertama.php");
+    exit();
+}
+
+$conn->close();
+?>

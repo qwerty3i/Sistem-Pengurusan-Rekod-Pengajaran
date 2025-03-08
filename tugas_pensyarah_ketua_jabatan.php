@@ -1,0 +1,30 @@
+<?php
+include 'sidebar_ketua_jabatan.php';
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tugas Pensyarah</title>
+    <style>
+        /* Add your styles here */
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .content {
+            margin-left: 200px; /* Adjust based on sidebar width */
+            padding: 20px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h1>Tugas Pensyarah</h1>
+        <!-- Replace 'your-image.jpg' with the path to your image -->
+        <img src="tugas-pensyarah.jpg" alt="Deskripsi Gambar">
+    </div>
+</body>
+</html> 
